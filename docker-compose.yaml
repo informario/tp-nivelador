@@ -1,4 +1,5 @@
 services:
+
   server:
     build:
       context: ./services/server
@@ -8,15 +9,73 @@ services:
       - PYTHONUNBUFFERED=1
       - SERVER_HOST=server
       - SERVER_PORT=5678
+    ports:
+      - 5678:5678
 
   client_0:
-    build:
-      context: ./services/client
-      dockerfile: Dockerfile
+    <<: &client
+      build:
+        context: ./services/client
+        dockerfile: Dockerfile
+      depends_on:
+        - server
+      environment: &client_env
+        SERVER_HOST: server
+        SERVER_PORT: 5678
     container_name: client_0
-    depends_on:
-      - server
     environment:
-      - AGENCY_ID=0
-      - SERVER_HOST=server
-      - SERVER_PORT=5678
+      <<: *client_env
+      AGENCY_ID: 0
+      INPUT_FILE: /input/input-0.csv
+      OUTPUT_FILE: /output/output-0.csv
+    volumes:
+      - ./input/input-0.csv:/input/input-0.csv
+      - ./output:/output
+
+  client_1:
+    <<: *client
+    container_name: client_1
+    environment:
+      <<: *client_env
+      AGENCY_ID: 1
+      INPUT_FILE: /input/input-1.csv
+      OUTPUT_FILE: /output/output-1.csv
+    volumes:
+      - ./input/input-1.csv:/input/input-1.csv
+      - ./output:/output
+
+  client_2:
+    <<: *client
+    container_name: client_2
+    environment:
+      <<: *client_env
+      AGENCY_ID: 2
+      INPUT_FILE: /input/input-2.csv
+      OUTPUT_FILE: /output/output-2.csv
+    volumes:
+      - ./input/input-2.csv:/input/input-2.csv
+      - ./output:/output
+
+  client_3:
+    <<: *client
+    container_name: client_3
+    environment:
+      <<: *client_env
+      AGENCY_ID: 3
+      INPUT_FILE: /input/input-3.csv
+      OUTPUT_FILE: /output/output-3.csv
+    volumes:
+      - ./input/input-3.csv:/input/input-3.csv
+      - ./output:/output
+
+  client_4:
+    <<: *client
+    container_name: client_4
+    environment:
+      <<: *client_env
+      AGENCY_ID: 4
+      INPUT_FILE: /input/input-4.csv
+      OUTPUT_FILE: /output/output-4.csv
+    volumes:
+      - ./input/input-4.csv:/input/input-4.csv
+      - ./output:/output
