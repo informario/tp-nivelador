@@ -38,10 +38,10 @@ services:
     environment:
       <<: *client_env
       AGENCY_ID: 1
-      INPUT_FILE: /input/input-1.csv
+      INPUT_FILE: /input/input-0.csv
       OUTPUT_FILE: /output/output-1.csv
     volumes:
-      - ./input/input-1.csv:/input/input-1.csv
+      - ./input/input-0.csv:/input/input-0.csv
       - ./output:/output
 
   client_2:
@@ -50,10 +50,10 @@ services:
     environment:
       <<: *client_env
       AGENCY_ID: 2
-      INPUT_FILE: /input/input-2.csv
+      INPUT_FILE: /input/input-0.csv
       OUTPUT_FILE: /output/output-2.csv
     volumes:
-      - ./input/input-2.csv:/input/input-2.csv
+      - ./input/input-0.csv:/input/input-0.csv
       - ./output:/output
 
   client_3:
@@ -62,10 +62,10 @@ services:
     environment:
       <<: *client_env
       AGENCY_ID: 3
-      INPUT_FILE: /input/input-3.csv
+      INPUT_FILE: /input/input-0.csv
       OUTPUT_FILE: /output/output-3.csv
     volumes:
-      - ./input/input-3.csv:/input/input-3.csv
+      - ./input/input-0.csv:/input/input-0.csv
       - ./output:/output
 
   client_4:
@@ -74,8 +74,8 @@ services:
     environment:
       <<: *client_env
       AGENCY_ID: 4
-      INPUT_FILE: /input/input-4.csv
+      INPUT_FILE: /input/input-0.csv
       OUTPUT_FILE: /output/output-4.csv
     volumes:
-      - ./input/input-4.csv:/input/input-4.csv
+      - ./input/input-0.csv:/input/input-0.csv
       - ./output:/output
