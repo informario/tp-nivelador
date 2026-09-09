@@ -1,8 +1,11 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"os"
+	"os/signal"
+	"syscall"
 
 	client "github.com/7574-sistemas-distribuidos/tp-nivelador/src/client"
 	"github.com/7574-sistemas-distribuidos/tp-nivelador/src/logger"
@@ -28,12 +31,12 @@ func loadConfig() (client.ClientConfig, error) {
 	if inputFile == "" {
 		return client.ClientConfig{}, errors.New("INPUT_FILE environment variable is required")
 	}
-	
+
 	outputFile := os.Getenv("OUTPUT_FILE")
 	if outputFile == "" {
 		return client.ClientConfig{}, errors.New("OUTPUT_FILE environment variable is required")
 	}
-	
+
 	return client.ClientConfig{
 		ServerHost: serverHost,
 		ServerPort: serverPort,
@@ -44,12 +47,14 @@ func loadConfig() (client.ClientConfig, error) {
 }
 
 func run() int {
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM)
+	defer stop()
+
 	config, err := loadConfig()
 	if err != nil {
 		logger.Error("load-config", logger.Fail, "err", err)
 		return 1
 	}
-
 
 	client, err := client.NewClient(config)
 	if err != nil {
@@ -59,7 +64,10 @@ func run() int {
 
 	defer client.Close()
 
-	if err := client.Run(); err != nil {
+	if err := client.Run(ctx); err != nil {
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			return 0
+		}
 		logger.Error("client-run", logger.Fail, "err", err)
 		return 1
 	}

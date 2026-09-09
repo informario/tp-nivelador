@@ -2,6 +2,7 @@ package client
 
 import (
 	"bufio"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -79,9 +80,22 @@ func connectToServer(host, port string) (net.Conn, error) {
 	return conn, err
 }
 
-func (client *Client) Run() error {
+func (client *Client) Run(ctx context.Context) error {
 	const mainAction = "test-echo-server"
-	defer client.conn.Close()
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	//ctx no puede cancelar un socket por si mismo
+	stopCloseOnCancel := make(chan struct{})
+	defer close(stopCloseOnCancel)
+	go func() {
+		select {
+		case <-ctx.Done():
+			_ = client.conn.Close()
+		case <-stopCloseOnCancel:
+		}
+	}()
+
 	agencyID, err := strconv.ParseUint(client.config.AgencyId, 10, 8)
 	if err != nil {
 		return fmt.Errorf("invalid agency id: %w", err)
@@ -93,9 +107,12 @@ func (client *Client) Run() error {
 	}
 	batch := make([]string, 0, batchSize)
 	for scanner.Scan() {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
 		batch = append(batch, scanner.Text())
 		if len(batch) == batchSize {
-			err := client.sendBatch(batch, byte(agencyID))
+			err := client.sendBatch(batch, byte(agencyID), ctx)
 			if err != nil {
 				return err
 			}
@@ -106,15 +123,15 @@ func (client *Client) Run() error {
 		return errors.New("file not found")
 	}
 	if len(batch) > 0 {
-		if err := client.sendBatch(batch, byte(agencyID)); err != nil {
+		if err := client.sendBatch(batch, byte(agencyID), ctx); err != nil {
 			return err
 		}
 	}
-	if err := client.sendWithRetry(nil, byte(agencyID), lottery.MESSAGE_STOP); err != nil {
+	if err := client.sendWithRetry(nil, byte(agencyID), lottery.MESSAGE_STOP, ctx); err != nil {
 		logger.Error("stop-message", logger.Fail)
 		return err
 	}
-	if err := client.receiveWinners(); err != nil {
+	if err := client.receiveWinners(ctx); err != nil {
 		logger.Error("winner-messages", logger.Fail)
 		return err
 	}
@@ -131,20 +148,24 @@ func batchSizeFromEnv() (int, error) {
 	return size, nil
 }
 
-func (client *Client) sendBatch(batch []string, agencyID byte) error {
+func (client *Client) sendBatch(batch []string, agencyID byte, ctx context.Context) error {
 	payload := strings.Join(batch, "\n")
-	time.Sleep(1 * time.Millisecond)
-	return client.sendWithRetry(&payload, agencyID, lottery.MESSAGE_BAT)
+	if err := waitForContext(ctx, time.Millisecond); err != nil {
+		return err
+	}
+	return client.sendWithRetry(&payload, agencyID, lottery.MESSAGE_BAT, ctx)
 }
 
-func (client *Client) receiveWinners() error {
+func (client *Client) receiveWinners(ctx context.Context) error {
 	for {
-		messageType, bet, _, err := lottery.Deserialize(client.conn)
-		isEOF := errors.Is(err, io.EOF)
-		if isEOF {
-			return nil
-		}
+		messageType, bet, _, err := lottery.Deserialize(client.conn, ctx)
 		if err != nil {
+			if ctxErr := ctx.Err(); ctxErr != nil {
+				return ctxErr
+			}
+			if errors.Is(err, io.EOF) {
+				return nil
+			}
 			return err
 		}
 		if bet == nil || (messageType != lottery.MESSAGE_BET && messageType != lottery.MESSAGE_BAT) {
@@ -166,9 +187,10 @@ func (client *Client) receiveWinners() error {
 	}
 }
 
-func (client *Client) sendWithRetry(bet *string, agencyID byte, msgType lottery.MessageType) error {
+func (client *Client) sendWithRetry(bet *string, agencyID byte, msgType lottery.MessageType, ctx context.Context) error {
 	/*Retry 3 veces por cada mensaje*/
 	/*si no pude enviar un mesaje 3 veces, en el caller siempre lanzo una excepción*/
+	/*El reintento también debe poder interrumpirse por SIGTERM.*/
 	var err error
 	for attempt := 0; attempt < RETIRES_ATTEMPTS_MAX; attempt++ {
 		var lotteryBet *lottery.Bet
@@ -176,29 +198,38 @@ func (client *Client) sendWithRetry(bet *string, agencyID byte, msgType lottery.
 			value := lottery.Bet(*bet)
 			lotteryBet = &value
 		}
-		err = lottery.Serialize(lotteryBet, agencyID, client.conn, msgType)
+		err = lottery.Serialize(lotteryBet, agencyID, client.conn, msgType, ctx)
 		if err == nil {
 			return nil
 		}
-		time.Sleep(RETIRES_ATTEMPS_DELAY_MS * time.Millisecond)
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			return err
+		}
+		if err := waitForContext(ctx, RETIRES_ATTEMPS_DELAY_MS*time.Millisecond); err != nil {
+			return err
+		}
 	}
 	return fmt.Errorf("max retries exceeded: %w", err)
+}
+
+func waitForContext(ctx context.Context, duration time.Duration) error {
+	timer := time.NewTimer(duration)
+	defer timer.Stop()
+
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
 }
 
 func (client *Client) Close() error {
 	/*Esto me resuelve todo, asumo que no me interesan mensajes de error de Close
 	dado que si recibo eso, qué puedo hacer¿?*/
-	err := client.conn.Close()
-	if err != nil {
-		return err
-	}
-	err = client.inputFile.Close()
-	if err != nil {
-		return err
-	}
-	err = client.outputFile.Close()
-	if err != nil {
-		return err
-	}
-	return nil
+	return errors.Join(
+		client.conn.Close(),
+		client.inputFile.Close(),
+		client.outputFile.Close(),
+	)
 }

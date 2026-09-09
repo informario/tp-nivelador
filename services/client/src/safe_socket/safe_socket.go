@@ -1,12 +1,13 @@
 package safe_socket
 
 import (
+	"context"
 	"io"
 )
 
 //TODO: Complete with a short-read/short-write tolerant implementation
 
-func SendAll(socket io.Writer, bytes []byte) error {
+func SendAll(socket io.Writer, bytes []byte, ctx context.Context) error {
 	/*
 		Acá no ocurre lo mismo como con el Reader, no hay un
 		"Write conventionally writes what is available instead
@@ -18,6 +19,9 @@ func SendAll(socket io.Writer, bytes []byte) error {
 	*/
 	size := len(bytes)
 	for contador := 0; contador < size; {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
 		n, err := socket.Write(bytes[contador:])
 		contador += n
 		if err != nil {
@@ -27,13 +31,16 @@ func SendAll(socket io.Writer, bytes []byte) error {
 	return nil
 }
 
-func RecvAll(socket io.Reader, size int) ([]byte, error) {
+func RecvAll(socket io.Reader, size int, ctx context.Context) ([]byte, error) {
 	/*
 		Primero proceso los bytes antes de evaluar el error
 	*/
 	buff := make([]byte, size)
 	contador := 0
 	for contador < size {
+		if ctx.Err() != nil {
+			return buff, ctx.Err()
+		}
 		n, err := socket.Read(buff[contador:])
 		contador += n
 		/*
