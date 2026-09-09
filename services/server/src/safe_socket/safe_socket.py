@@ -1,4 +1,5 @@
 import socket
+MAGIC = 2777666555
 
 # TODO: Complete with a short-read/short-write tolerant implementation
 
@@ -17,8 +18,9 @@ def recv_all(socket: socket.socket, size):
 def send_all(socket: socket.socket, bytes):
     contador = 0
     while contador < len(bytes):
-        n = socket.send(bytes[contador:])
-        if n == 0:
-            raise RuntimeError("Connection closed")
+        try:
+            n = socket.send(bytes[contador:])
+        except socket.error as e:
+            raise RuntimeError("Connection closed") from e
         contador = contador + n
     return contador
