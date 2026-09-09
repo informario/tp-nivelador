@@ -133,6 +133,7 @@ func batchSizeFromEnv() (int, error) {
 
 func (client *Client) sendBatch(batch []string, agencyID byte) error {
 	payload := strings.Join(batch, "\n")
+	time.Sleep(1 * time.Millisecond)
 	return client.sendWithRetry(&payload, agencyID, lottery.MESSAGE_BAT)
 }
 

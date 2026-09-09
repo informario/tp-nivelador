@@ -14,13 +14,13 @@ from tests import (
 )
 
 TEST_CASES = [
-    # Json,
-    # ForcedExit,
-    # OutputFiles,
-    # Concurrency,
-    # MemoryProfile,
-    # ClientShortReadWrite,
-    # ServerShortReadWrite,
+    Json,
+    ForcedExit,
+    OutputFiles,
+    Concurrency,
+    MemoryProfile,
+    ClientShortReadWrite,
+    ServerShortReadWrite,
     Batching,
     #SigtermHandling,
 ]
