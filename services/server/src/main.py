@@ -1,16 +1,18 @@
 import os
 import sys
-
 import logger
 import server
+
+from shutdown import GracefulShutdown
 
 SERVER_HOST = os.environ["SERVER_HOST"]
 SERVER_PORT = int(os.environ["SERVER_PORT"])
 
-
 def main():
+    shutdown = GracefulShutdown()
     logger.init()
-    s = server.Server(SERVER_HOST, SERVER_PORT)
+
+    s = server.Server(SERVER_HOST, SERVER_PORT, shutdown)
     try:
         s.run()
     except Exception as e:

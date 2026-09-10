@@ -48,7 +48,7 @@ func Serialize(bet *Bet, agencyID byte, sock io.Writer, messageType MessageType,
 	buf[5] = agencyID
 	binary.BigEndian.PutUint32(buf[6:10], payloadLen)
 	copy(buf[10:], payload)
-	if err := safe_socket.SendAll(sock, buf, ctx); err != nil {
+	if err := safe_socket.SendAll2(sock, buf, ctx); err != nil {
 		if ctxErr := ctx.Err(); ctxErr != nil {
 			return ctxErr
 		}
@@ -58,7 +58,7 @@ func Serialize(bet *Bet, agencyID byte, sock io.Writer, messageType MessageType,
 }
 
 func Deserialize(sock io.Reader, ctx context.Context) (MessageType, *Bet, byte, error) {
-	header, err := safe_socket.RecvAll(sock, 10, ctx)
+	header, err := safe_socket.RecvAll2(sock, 10, ctx)
 	if err != nil {
 		if ctxErr := ctx.Err(); ctxErr != nil {
 			return 0, nil, 0, ctxErr
@@ -71,7 +71,7 @@ func Deserialize(sock io.Reader, ctx context.Context) (MessageType, *Bet, byte, 
 	messageType := MessageType(header[4])
 	agencyID := header[5]
 	payloadLen := bytesToUint32BE(header[6:10])
-	payload, err := safe_socket.RecvAll(sock, int(payloadLen), ctx)
+	payload, err := safe_socket.RecvAll2(sock, int(payloadLen), ctx)
 	if err != nil {
 		if ctxErr := ctx.Err(); ctxErr != nil {
 			return 0, nil, 0, ctxErr

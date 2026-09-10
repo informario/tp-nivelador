@@ -4,6 +4,7 @@ from enum import IntEnum
 
 import safe_socket
 from lottery import Bet
+from shutdown import GracefulShutdown, ShutdownRequested
 
 MAGIC = 2777666555
 
@@ -27,14 +28,15 @@ def _uint32_to_bytes_be(value: int, buf: bytearray, offset: int):
     buf[offset + 3] = value & 0xFF
 
 
-def deserialize(sock: socket.socket):
-    header = safe_socket.recv_all(sock, 10)
+
+def deserialize(sock: socket.socket, shutdown: GracefulShutdown):
+    header = safe_socket.recv_all(sock, 10, shutdown)
     if _bytes_to_uint32_be(header[:4]) != MAGIC:
         raise RuntimeError("bad magic")
     message_type = MessageType(header[4])
     agency_id = header[5]
     payload_len = _bytes_to_uint32_be(header[6:10])
-    payload = safe_socket.recv_all(sock, payload_len)
+    payload = safe_socket.recv_all(sock, payload_len, shutdown)
     if message_type == MessageType.STOP:
         return Stop(agency_id)
     if message_type == MessageType.BET:
@@ -47,6 +49,8 @@ def deserialize(sock: socket.socket):
         bets = []
         lines = payload.decode("utf-8").split("\n")
         for line in lines:
+            if shutdown.event.is_set():
+                raise ShutdownRequested()
             fields = line.split(",")
             if len(fields) != 5:
                 raise RuntimeError("invalid bat payload")
@@ -58,7 +62,8 @@ def deserialize(sock: socket.socket):
     raise RuntimeError("unknown message type")
 
 
-def serialize(sock: socket.socket, message_type: MessageType, bet_s):
+
+def serialize(sock: socket.socket, message_type: MessageType, bet_s, shutdown: GracefulShutdown):
     payload = b""
     if message_type == MessageType.BET:
         payload = f"{bet_s.first_name},{bet_s.last_name},{bet_s.document},{bet_s.birthdate},{bet_s.number}".encode()
@@ -81,4 +86,4 @@ def serialize(sock: socket.socket, message_type: MessageType, bet_s):
     buf[5] = agency_id
     _uint32_to_bytes_be(payload_len, buf, 6)
     buf[10:] = payload
-    safe_socket.send_all(sock, bytes(buf))
+    safe_socket.send_all(sock, bytes(buf), shutdown)
