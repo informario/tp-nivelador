@@ -28,8 +28,15 @@ func bytesToUint32BE(data []byte) uint32 {
 /*
 A partir de una línea del csv, cuento bytes totales y le agrego un magic, el tipo, el agencyid y el tamaño
 para el mensaje bet, le agrego un payload
+[magic] 4 B
+[tipo] 1 B
+[agencyid] 1 B
+[payload len] 4 B
+[payload] variable
 
 todo! deberia sacar esto de aca y ponerlo en un protocol.py
+
+al final el magic es inutil e innecesario dado que no implementé resincronización. confiamos que TCP envíá toodo ordenado y correctamente
 */
 
 func Serialize(bet *Bet, agencyID byte, sock io.Writer, messageType MessageType, ctx context.Context) error {

@@ -35,12 +35,14 @@ class Server:
                 message = protocol.deserialize(client_socket, self.shutdown)
                 if isinstance(message, lottery.Bet):
                     bets.append(message)
+                    #file lock
                     with self._storage_lock:
                         lottery.Lottery("store.csv").store_bets([message])
                     message_amount += 1
                     continue
                 if isinstance(message, list):
                     bets.extend(message)
+                    #file lock
                     with self._storage_lock:
                         lottery.Lottery("store.csv").store_bets(message)
                     message_amount += len(message)
@@ -58,11 +60,12 @@ class Server:
                 self._barrier.wait()
             except threading.BrokenBarrierError:
                 if self.shutdown.event.is_set():
+                    #este no es una barrera rota, sino el mismo graceful shtdown
                     logger.info(action, logger.LogResult.in_progress, "shutdown-requested")
                 else:
                     logger.error(action, logger.LogResult.fail, "barrier-broken")
                 return
-
+            #file lock
             with self._storage_lock:
                 result = lottery.Lottery("store.csv")
                 winners = [bet for bet in result.load_bets() if result.has_won(bet)]
@@ -87,6 +90,7 @@ class Server:
                          "messages-amount", message_amount)
             raise
         finally:
+            #no debo cerrar el store.csv dado que el with lo cierra incluso en caso de excepción
             client_socket.close()
             logger.info(
                 action,
@@ -95,6 +99,12 @@ class Server:
             )
 
     def run(self):
+        """
+        utilizo un thread por cada cliente
+        los sincronizo con una barrera para esperar al consenso
+        y con un file lock para escribir en el csv
+        creo un hilo que se ocupe de abortar la barrea en caso de graceful shutdown
+        """
         action = "accept-connection"
 
         threading.Thread(

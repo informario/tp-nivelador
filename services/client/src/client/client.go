@@ -107,6 +107,7 @@ func (client *Client) Run(ctx context.Context) error {
 	}
 	batch := make([]string, 0, batchSize)
 	for scanner.Scan() {
+		//al leer linea x linea, no debería escalar el consumo de memoria aumentando la entrada
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
@@ -150,6 +151,8 @@ func batchSizeFromEnv() (int, error) {
 
 func (client *Client) sendBatch(batch []string, agencyID byte, ctx context.Context) error {
 	payload := strings.Join(batch, "\n")
+	//este sleep es para no sobrecargar los sockets y que no se dispare el consumo de memoria
+	//tambien esto puede ser corregido con un ack, pero esta es otra forma
 	if err := waitForContext(ctx, time.Millisecond); err != nil {
 		return err
 	}
@@ -213,6 +216,7 @@ func (client *Client) sendWithRetry(bet *string, agencyID byte, msgType lottery.
 }
 
 func waitForContext(ctx context.Context, duration time.Duration) error {
+	//esto es basicamente un sleep pero que contempla el shutdown
 	timer := time.NewTimer(duration)
 	defer timer.Stop()
 
@@ -225,7 +229,7 @@ func waitForContext(ctx context.Context, duration time.Duration) error {
 }
 
 func (client *Client) Close() error {
-	/*Esto me resuelve todo, asumo que no me interesan mensajes de error de Close
+	/*Esto me resuelve el cierre de los FD, asumo que no me interesan mensajes de error de Close
 	dado que si recibo eso, qué puedo hacer¿?*/
 	return errors.Join(
 		client.conn.Close(),
