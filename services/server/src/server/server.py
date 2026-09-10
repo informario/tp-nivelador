@@ -17,6 +17,7 @@ class Server:
         self.shutdown = shutdown
         quorum_min = int(os.environ.get("AGENCY_QUORUM_MIN", "5"))
         self._barrier = threading.Barrier(quorum_min)
+        self._storage_lock = threading.Lock()
         self._client_threads = []
 
     def _barrier_shutdown(self):
@@ -34,12 +35,14 @@ class Server:
                 message = protocol.deserialize(client_socket, self.shutdown)
                 if isinstance(message, lottery.Bet):
                     bets.append(message)
-                    lottery.Lottery("store.csv").store_bets([message])
+                    with self._storage_lock:
+                        lottery.Lottery("store.csv").store_bets([message])
                     message_amount += 1
                     continue
                 if isinstance(message, list):
                     bets.extend(message)
-                    lottery.Lottery("store.csv").store_bets(message)
+                    with self._storage_lock:
+                        lottery.Lottery("store.csv").store_bets(message)
                     message_amount += len(message)
                     continue
                 if isinstance(message, protocol.Stop):
@@ -60,8 +63,9 @@ class Server:
                     logger.error(action, logger.LogResult.fail, "barrier-broken")
                 return
 
-            result = lottery.Lottery("store.csv")
-            winners = [bet for bet in result.load_bets() if result.has_won(bet)]
+            with self._storage_lock:
+                result = lottery.Lottery("store.csv")
+                winners = [bet for bet in result.load_bets() if result.has_won(bet)]
             winning_bets = {
                 (bet.agency_id, bet.first_name, bet.last_name, bet.document,
                  bet.birthdate, bet.number)
